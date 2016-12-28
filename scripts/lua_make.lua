@@ -263,6 +263,13 @@ function make.readversion( filename )
 end
 
 function make.svnrevision()
+    return {
+        full = "3028:3028",
+        working = 3028,
+        current = 3028,
+        mod = ""
+    }
+--[[
 	os.execute( "svnversion . > revision.info" )
     local svnline = os.readsingleline( "revision.info" )
     local working, current, mod
@@ -278,6 +285,7 @@ function make.svnrevision()
     	current = tonumber(current),
     	mod     = mod
     }
+--]]
 end
 
 function make.svncheck( data )
