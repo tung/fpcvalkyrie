@@ -4,7 +4,7 @@ interface
 uses Classes, SysUtils, vutil, viotypes, vioevent;
 
 type TTextIODriver = class( TIODriver )
-  constructor Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
+  constructor Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False{$IFDEF TCOD}; aUseTCOD : Boolean = False{$ENDIF} );
   function PollEvent( out aEvent : TIOEvent ) : Boolean; override;
   function PeekEvent( out aEvent : TIOEvent ) : Boolean; override;
   function EventPending : Boolean; override;
@@ -24,6 +24,9 @@ type TTextIODriver = class( TIODriver )
 protected
   function PollKey : Cardinal;
 private
+{$IFDEF TCOD}
+  FUseTCOD      : Boolean;
+{$ENDIF}
   FMouse        : Boolean;
   FStartTime    : TDateTime;
   FFirstUpdate  : Boolean;
@@ -39,6 +42,7 @@ implementation
 uses
   {$IFDEF UNIX}unix,{$ENDIF}
   {$IFDEF Windows}Windows,{$ENDIF}
+  {$IFDEF TCOD}vtcod, vtcodkbd, vtcodvideo,{$ENDIF}
   math, video, keyboard, mouse, dateutils;
 
 const InputKeyBackSpace = $0E08;
@@ -94,7 +98,7 @@ begin
     kbdF11            : Result := VKEY_F11;
     kbdF12            : Result := VKEY_F12;
   else
-    if (KeyEvent < 256) and (Ord(KeyEvent) in VKEY_SCANSET) then
+    if KeyEvent < 256 then
       Exit( KeyEvent );
   end;
 end;
@@ -112,11 +116,15 @@ var ASCII : Char;
 begin
   KeyEvent := TranslateKeyEvent(KeyEvent);
   ASCII    := GetKeyEventChar(KeyEvent);
-  if Ord(ASCII) in VKEY_PRINTABLESET then Exit( PrintableToIOEvent( ASCII ) );
-  Result.EType    := VEVENT_KEYDOWN;
-  Result.Key.ASCII    := #0;
-  Result.Key.ModState := ShiftStateToModKeySet( GetKeyEventShiftState(KeyEvent) );
-  Result.Key.Code     := KeyEventToCode( KeyEvent );
+  if Ord(ASCII) in VKEY_PRINTABLESET then begin
+    Result := PrintableToIOEvent(ASCII);
+    Result.Key.ModState := ShiftStateToModKeySet( GetKeyEventShiftState(KeyEvent) );
+  end else begin
+    Result.EType    := VEVENT_KEYDOWN;
+    Result.Key.ASCII    := #0;
+    Result.Key.ModState := ShiftStateToModKeySet( GetKeyEventShiftState(KeyEvent) );
+    Result.Key.Code     := KeyEventToCode( KeyEvent );
+  end;
 end;
 
 function MouseButtonToVMB( buttons : Word ) : TIOMouseButton;
@@ -161,21 +169,30 @@ end;
 
 { TTextIODriver }
 
-constructor TTextIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
+constructor TTextIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False{$IFDEF TCOD}; aUseTCOD : Boolean = False{$ENDIF} );
 var iVideoMode : TVideoMode;
 begin
   ClearInterrupts;
   TextIO := Self;
   FMouse := aMouse;
+  {$IFDEF TCOD}
+  FUseTCOD := aUseTCOD;
+  {$ENDIF}
 
   inherited Create;
   Log('Initializing TextIO driver...');
 
-  InitKeyboard;
-  Log('Terminal Keyboard system ready.');
-
+  {$IFDEF TCOD}
+  if FUseTCOD then SetTCODVideoDriver;
+  {$ENDIF}
   InitVideo;
   ClearScreen;
+
+  {$IFDEF TCOD}
+  if FUseTCOD then SetTCODKeyboardDriver;
+  {$ENDIF}
+  InitKeyboard;
+  Log('Terminal Keyboard system ready.');
 
   if FMouse then
   begin
@@ -323,6 +340,9 @@ procedure TTextIODriver.SetTitle ( const aLongTitle : AnsiString;
 begin
   {$IFDEF WIN32}
   SetConsoleTitle(PChar(aLongTitle));
+  {$ENDIF}
+  {$IFDEF TCOD}
+  if FUseTCOD then TCOD_console_set_window_title(PChar(aLongTitle));
   {$ENDIF}
 end;
 
