@@ -125,7 +125,17 @@ begin
   begin
     if FPercent then
     begin
-      iPercent := Clamp(((FSource.Scroll + FSource.VisibleCount)*100) div FSource.Count, 0, 100 );
+      if FSource.Count > FSource.VisibleCount then
+      begin
+        if FSource.Scroll = 0 then
+          iPercent := 0
+        else if FSource.Scroll + FSource.VisibleCount = FSource.Count then
+          iPercent := 100
+        else
+          iPercent := Clamp( (FSource.Scroll * 100) div (FSource.Count - FSource.VisibleCount), 1, 99 );
+      end
+      else
+        iPercent := 100;
       iCon.RawPrint( FPercentPos, FIconColor, ' '+Format('%3d',[iPercent])+'% ' );
     end;
 
